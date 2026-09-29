@@ -6,7 +6,6 @@ brief_data.json (Claude가 예약 작업에서 채우는 구조화 데이터) ->
 """
 import argparse
 import json
-import math
 import os
 from pathlib import Path
 
@@ -86,14 +85,16 @@ def new_canvas() -> tuple[Image.Image, ImageDraw.ImageDraw]:
     return img, ImageDraw.Draw(img)
 
 
-def draw_footer(draw: ImageDraw.ImageDraw, page: int, total: int, brand_handle: str) -> None:
+def draw_centered_text(draw: ImageDraw.ImageDraw, y: int, text: str, font: ImageFont.FreeTypeFont, fill: str) -> None:
+    bbox = draw.textbbox((0, 0), text, font=font)
+    w = bbox[2] - bbox[0]
+    draw.text(((CANVAS_W - w) / 2 - bbox[0], y), text, font=font, fill=fill)
+
+
+def draw_footer(draw: ImageDraw.ImageDraw, page: int, total: int) -> None:
     font = load_font(False, 26)
     draw.line([(MARGIN, CANVAS_H - 110), (CANVAS_W - MARGIN, CANVAS_H - 110)], fill=HAIRLINE, width=2)
-    draw.text((MARGIN, CANVAS_H - 80), brand_handle, font=font, fill=INK_SOFT)
-    page_text = f"{page} / {total}"
-    bbox = draw.textbbox((0, 0), page_text, font=font)
-    w = bbox[2] - bbox[0]
-    draw.text((CANVAS_W - MARGIN - w, CANVAS_H - 80), page_text, font=font, fill=INK_GREY)
+    draw_centered_text(draw, CANVAS_H - 80, f"{page} / {total}", font, INK_GREY)
 
 
 def draw_triangle(draw: ImageDraw.ImageDraw, cx: int, cy: int, size: int, direction: str, color: str) -> None:
@@ -122,15 +123,18 @@ def make_cover_card(date: str, headline: str, summary_points: list[str]) -> Imag
     img, draw = new_canvas()
 
     date_font = load_font(False, 30)
-    draw.text((MARGIN, 90), date, font=date_font, fill=INK_SOFT)
+    draw_centered_text(draw, 90, date, date_font, INK_SOFT)
 
-    draw.rounded_rectangle([(MARGIN, 140), (MARGIN + 90, 146)], radius=3, fill=CLAY)
+    bar_w = 90
+    draw.rounded_rectangle(
+        [(CANVAS_W - bar_w) / 2, 140, (CANVAS_W + bar_w) / 2, 146], radius=3, fill=CLAY
+    )
 
-    headline_font = load_font(True, 64)
+    headline_font = load_font(True, 60)
     lines = wrap_text(draw, headline, headline_font, CANVAS_W - 2 * MARGIN)
     y = 200
     for line in lines:
-        draw.text((MARGIN, y), line, font=headline_font, fill=INK)
+        draw_centered_text(draw, y, line, headline_font, INK)
         bbox = draw.textbbox((0, 0), line, font=headline_font)
         y += (bbox[3] - bbox[1]) + 22
 
@@ -139,25 +143,24 @@ def make_cover_card(date: str, headline: str, summary_points: list[str]) -> Imag
     y += 150
 
     draw.line([(MARGIN, y), (CANVAS_W - MARGIN, y)], fill=HAIRLINE, width=2)
-    y += 40
+    y += 44
 
     point_font = load_font(False, 34)
     for point in summary_points:
         wrapped = wrap_text(draw, point, point_font, CANVAS_W - 2 * MARGIN - 40)
-        draw.ellipse([(MARGIN, y + 14), (MARGIN + 12, y + 26)], fill=CLAY)
         for wline in wrapped:
-            draw.text((MARGIN + 34, y), wline, font=point_font, fill=INK_SOFT)
+            draw_centered_text(draw, y, wline, point_font, INK_SOFT)
             bbox = draw.textbbox((0, 0), wline, font=point_font)
             y += (bbox[3] - bbox[1]) + 14
-        y += 18
+        y += 20
 
     return img
 
 
 def draw_badge(draw: ImageDraw.ImageDraw, index: int) -> int:
-    """번호 칩을 그리고, 칩 바로 아래 y좌표(다음 콘텐츠 시작점)를 반환."""
+    """번호 칩을 가운데에 그리고, 칩 바로 아래 y좌표(다음 콘텐츠 시작점)를 반환."""
     chip_size = 64
-    x0, y0 = MARGIN, 90
+    x0, y0 = (CANVAS_W - chip_size) / 2, 90
     draw.rounded_rectangle([x0, y0, x0 + chip_size, y0 + chip_size], radius=16, fill=CLAY)
     badge_font = load_font(True, 30)
     text = f"{index:02d}"
@@ -167,13 +170,13 @@ def draw_badge(draw: ImageDraw.ImageDraw, index: int) -> int:
         (x0 + (chip_size - tw) / 2, y0 + (chip_size - th) / 2 - bbox[1]),
         text, font=badge_font, fill="#FCFCFB",
     )
-    return y0 + chip_size
+    return int(y0 + chip_size)
 
 
 def draw_stat_box(draw: ImageDraw.ImageDraw, top: int, stat: str, stat_label: str, trend: str | None) -> int:
-    """큰 수치 하이라이트 박스를 그리고, 박스 아래 y좌표를 반환."""
+    """큰 수치 하이라이트 박스를 가운데 정렬로 그리고, 박스 아래 y좌표를 반환."""
     color = trend_color(trend)
-    stat_font = load_font(True, 92)
+    stat_font = load_font(True, 88)
     label_font = load_font(False, 30)
 
     box_left, box_right = MARGIN, CANVAS_W - MARGIN
@@ -185,19 +188,26 @@ def draw_stat_box(draw: ImageDraw.ImageDraw, top: int, stat: str, stat_label: st
 
     draw.rounded_rectangle([box_left, top, box_right, box_bottom], radius=20, fill=PANEL)
 
-    content_x = box_left + 48
+    triangle_w = 50 if trend in ("up", "down") else 0
+    stat_w = stat_bbox[2] - stat_bbox[0]
+    label_bbox = draw.textbbox((0, 0), stat_label, font=label_font) if stat_label else (0, 0, 0, 0)
+    label_w = label_bbox[2] - label_bbox[0]
+    label_gap = 24 if stat_label else 0
+
+    total_w = triangle_w + stat_w + label_gap + label_w
+    group_x = box_left + ((box_right - box_left) - total_w) / 2
+    center_y = top + box_height // 2
+
+    if triangle_w:
+        draw_triangle(draw, int(group_x + 16), center_y, 16, trend, color)
+        group_x += triangle_w
+
     stat_y = top + pad_y - stat_bbox[1]
+    draw.text((group_x, stat_y), stat, font=stat_font, fill=color)
+    group_x += stat_w + label_gap
 
-    if trend in ("up", "down"):
-        draw_triangle(draw, content_x + 16, top + box_height // 2, 16, trend, color)
-        content_x += 50
-
-    draw.text((content_x, stat_y), stat, font=stat_font, fill=color)
-    stat_w = draw.textbbox((0, 0), stat, font=stat_font)[2]
-    draw.text(
-        (content_x + stat_w + 24, top + box_height // 2 + 6),
-        stat_label, font=label_font, fill=INK_SOFT,
-    )
+    if stat_label:
+        draw.text((group_x, center_y + 6), stat_label, font=label_font, fill=INK_SOFT)
 
     return box_bottom
 
@@ -219,7 +229,7 @@ def make_item_card(index: int, item: dict) -> list[Image.Image]:
 
     content_top = 90 + 64 + 40 + heading_h + 36
     if stat:
-        stat_box_h = 44 * 2 + (load_font(True, 92).getbbox(stat)[3]) + 46
+        stat_box_h = 44 * 2 + (load_font(True, 88).getbbox(stat)[3]) + 46
         content_top += stat_box_h + 36
 
     line_height_est = body_font.size + 20
@@ -238,7 +248,7 @@ def make_item_card(index: int, item: dict) -> list[Image.Image]:
         heading_display = heading if len(pages) == 1 else f"{heading} ({sub_i + 1}/{len(pages)})"
         h_lines = wrap_text(draw, heading_display, heading_font, CANVAS_W - 2 * MARGIN)
         for hline in h_lines:
-            draw.text((MARGIN, content_y), hline, font=heading_font, fill=INK)
+            draw_centered_text(draw, content_y, hline, heading_font, INK)
             bbox = draw.textbbox((0, 0), hline, font=heading_font)
             content_y += (bbox[3] - bbox[1]) + 16
         content_y += 20
@@ -247,7 +257,7 @@ def make_item_card(index: int, item: dict) -> list[Image.Image]:
             content_y = draw_stat_box(draw, content_y, stat, stat_label, trend) + 36
 
         for bline in page_lines:
-            draw.text((MARGIN, content_y), bline, font=body_font, fill=INK_SOFT)
+            draw_centered_text(draw, content_y, bline, body_font, INK_SOFT)
             bbox = draw.textbbox((0, 0), bline, font=body_font)
             content_y += (bbox[3] - bbox[1]) + 20
 
@@ -255,7 +265,7 @@ def make_item_card(index: int, item: dict) -> list[Image.Image]:
     return images
 
 
-def generate(input_path: Path, outdir: Path, brand_handle: str) -> list[Path]:
+def generate(input_path: Path, outdir: Path) -> list[Path]:
     data = json.loads(input_path.read_text(encoding="utf-8"))
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -273,7 +283,7 @@ def generate(input_path: Path, outdir: Path, brand_handle: str) -> list[Path]:
     paths: list[Path] = []
     for i, card in enumerate(cards, start=1):
         draw = ImageDraw.Draw(card)
-        draw_footer(draw, i, total, brand_handle)
+        draw_footer(draw, i, total)
         path = outdir / f"card_{i:02d}.png"
         card.save(path, "PNG")
         paths.append(path)
@@ -285,10 +295,9 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="data/brief_data.json")
     parser.add_argument("--outdir", required=True)
-    parser.add_argument("--brand-handle", default=os.environ.get("BRAND_HANDLE", "@morning_brief"))
     args = parser.parse_args()
 
-    paths = generate(Path(args.input), Path(args.outdir), args.brand_handle)
+    paths = generate(Path(args.input), Path(args.outdir))
     print(f"생성된 카드 {len(paths)}장:")
     for p in paths:
         print(f"  {p}")

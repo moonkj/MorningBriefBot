@@ -40,6 +40,10 @@ def build_caption(data: dict) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="data/brief_data.json")
+    parser.add_argument(
+        "--session", choices=["us", "kr"], required=True,
+        help="us: 오전 7시 미국장 브리프, kr: 오후 5시 국내장 브리프 (같은 날짜 폴더 충돌 방지용)",
+    )
     parser.add_argument("--skip-instagram", action="store_true")
     parser.add_argument("--skip-tiktok", action="store_true")
     args = parser.parse_args()
@@ -48,11 +52,11 @@ def main() -> None:
     data = json.loads(input_path.read_text(encoding="utf-8"))
 
     day_slug = slugify_date(data["date"])
-    rel_dir = f"docs/{day_slug}"
+    rel_dir = f"docs/{day_slug}-{args.session}"
     outdir = REPO_ROOT / rel_dir
 
     print(f"[1/4] 카드 이미지 생성 -> {rel_dir}")
-    card_paths = generate(input_path, outdir, data.get("brand_handle", "@morning_brief"))
+    card_paths = generate(input_path, outdir)
     image_names = [p.name for p in card_paths]
 
     print("[2/4] git commit + push, GitHub Pages 대기")
