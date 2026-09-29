@@ -1,18 +1,27 @@
 # MorningBriefBot
 
-매일 아침 시장 브리프를 카드뉴스 이미지로 만들어 Instagram과 TikTok에 자동으로 올리는 파이프라인.
+하루 2번(오전 7시 미국장 마감 브리프, 오후 5시 국내장 마감 브리프) 시장 브리프를 카드뉴스
+이미지로 만들어 Instagram과 TikTok에 자동으로 올리는 파이프라인.
 
 ## 동작 방식
 
 ```
-Claude 예약 작업(매일 아침, cron)
-  1. 웹 검색으로 오늘의 시장 데이터를 모아 data/brief_data.json 작성
-  2. python src/main.py 실행
-       a. src/generate_cards.py    -> docs/<날짜>/card_XX.png 카드뉴스 이미지 생성
-       b. src/publish_pages.py     -> git commit+push, GitHub Pages에 반영될 때까지 대기
-       c. src/instagram_post.py    -> 이미지 URL들을 Instagram 캐러셀로 게시
-       d. src/tiktok_post.py       -> 이미지 URL들을 TikTok 포토 게시물로 게시
+Claude 예약 작업 #1 (매일 07:00, 미국장)         Claude 예약 작업 #2 (매일 17:00, 국내장)
+  1. 웹 검색으로 미국 증시 마감 데이터 수집          1. 웹 검색으로 국내(코스피/코스닥) 마감 데이터 수집
+     -> data/brief_data.json 작성                    -> data/brief_data.json 작성
+  2. python src/main.py --session us               2. python src/main.py --session kr
 ```
+
+`main.py`가 하는 일:
+```
+  a. src/generate_cards.py    -> docs/<날짜>-<us|kr>/card_XX.png 카드뉴스 이미지 생성
+  b. src/publish_pages.py     -> git commit+push, GitHub Pages에 반영될 때까지 대기
+  c. src/instagram_post.py    -> 이미지 URL들을 Instagram 캐러셀로 게시
+  d. src/tiktok_post.py       -> 이미지 URL들을 TikTok 포토 게시물로 게시
+```
+
+`--session us`/`--session kr`은 같은 날짜에 두 번 실행돼도 `docs/` 폴더가 겹치지 않게 해줍니다
+(예: `docs/2026-09-29-us`, `docs/2026-09-29-kr`).
 
 이미지를 Instagram/TikTok API에 넘기려면 "누구나 접근 가능한 URL"이 있어야 하는데, 이 프로젝트는
 GitHub Pages(`docs/` 폴더)를 그 호스팅으로 씁니다. 그래서 매일 이미지가 이 repo에 커밋·푸시됩니다.
@@ -89,30 +98,34 @@ Instagram Graph API의 게시(publish) 기능은 **프로페셔널(비즈니스/
 > 쪽 정책이라 제가 대신 처리할 수 없고, 신청 후 심사에 며칠~몇 주가 걸릴 수 있습니다.
 > 심사 전까지는 SELF_ONLY로 파이프라인이 잘 도는지 먼저 검증하는 용도로 쓰세요.
 
-## 4. 브랜드 설정
-
-`.env`의 `BRAND_HANDLE`을 카드 하단에 표시할 계정 핸들로 설정하세요 (예: `@your_handle`).
-
-## 5. 파이프라인 수동 테스트
+## 4. 파이프라인 수동 테스트
 
 API 키를 다 채운 뒤, 오늘자 `data/brief_data.json`을 하나 만들고 (형식은
-`data/brief_data.schema.json` 참고) 아래로 부분 테스트할 수 있습니다.
+`data/brief_data.schema.json` 참고 — `sections`의 항목 수는 4~7개를 목표로 하면 표지 포함
+5~8장이 나옵니다) 아래로 부분 테스트할 수 있습니다.
 
 ```bash
 # 카드 생성 + GitHub Pages 반영만 (SNS 게시는 건너뜀)
-python src/main.py --input data/brief_data.json --skip-instagram --skip-tiktok
+python src/main.py --input data/brief_data.json --session us --skip-instagram --skip-tiktok
 
 # Instagram만
-python src/main.py --input data/brief_data.json --skip-tiktok
+python src/main.py --input data/brief_data.json --session us --skip-tiktok
 
 # 전체
-python src/main.py --input data/brief_data.json
+python src/main.py --input data/brief_data.json --session us
 ```
 
-## 6. 예약 작업
+국내장 브리프를 테스트할 때는 `--session kr`을 씁니다.
 
-API 설정이 끝나고 수동 테스트가 성공하면, Claude의 예약 작업(스케줄러)으로 매일 아침 자동 실행되게
-설정합니다. 이 repo가 준비되면 알려주세요 — 예약 작업을 등록해 드립니다.
+## 5. 예약 작업 (2개)
+
+API 설정이 끝나고 수동 테스트가 성공하면, Claude의 예약 작업(스케줄러)으로 아래 2개를 등록합니다.
+준비되면 알려주세요.
+
+- **미국장 브리프**: 매일 07:00, 전날 미국 증시 마감·지수 선물·환율·유가 등을 수집해
+  `--session us`로 실행.
+- **국내장 브리프**: 매일 17:00 (코스피/코스닥 마감 이후), 국내 증시·환율·주요 종목 뉴스를 수집해
+  `--session kr`로 실행.
 
 ## 한계 / 주의사항
 
