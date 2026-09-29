@@ -34,12 +34,12 @@ python src/generate_cards.py --input data/brief_data.schema.json --outdir docs/t
 
 `docs/test/card_01.png` 등을 열어서 확인한 뒤 지워도 됩니다.
 
-## 1. GitHub 저장소 + Pages
+## 1. GitHub 저장소 + Pages ✅ (완료)
 
-1. GitHub에서 이 폴더를 새 저장소로 push (아래 "다음 단계"에서 같이 진행합니다).
-2. 저장소 **Settings → Pages** 에서 Source를 `Deploy from a branch`, Branch를 `main` / `/docs` 로 설정.
-3. `https://<GITHUB_USERNAME>.github.io/<REPO>/` 가 몇 분 내로 열리는지 확인.
-4. `.env`에 `GITHUB_USERNAME`, `GITHUB_REPO` 채우기.
+- 저장소: https://github.com/moonkj/MorningBriefBot (public — 카드 이미지가 어차피 SNS에
+  공개되므로 public으로 전환. `.env`는 `.gitignore`에 있어 올라가지 않음)
+- GitHub Pages: https://moonkj.github.io/MorningBriefBot/ (source: `main` / `/docs`, 확인 완료)
+- `.env`에 `GITHUB_USERNAME=moonkj`, `GITHUB_REPO=MorningBriefBot` 이미 채워져 있음.
 
 ## 2. Instagram (Meta Graph API) 설정
 
